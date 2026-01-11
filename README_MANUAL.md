@@ -1,6 +1,6 @@
 # AI 戦略プレゼンテーション & チャットボット システム利用マニュアル
 
-**バージョン:** 2.5
+**バージョン:** 2.6
 **最終更新日:** 2026/01/11
 
 本システムは、お手持ちのドキュメント（PDF, Markdown等）をAIに学習させ、プレゼンテーションと連動して質疑応答を行う **Client-Side RAG（検索拡張生成）システム** です。
@@ -16,11 +16,12 @@
 ```text
 [任意のプロジェクトフォルダ]
  │
- ├─ chatbot_rag.html         (メインアプリ：ブラウザで開くファイル)
- ├─ requirements.txt         (インストールが必要なライブラリ一覧)
+ ├─ start_presentation.bat   (★重要：起動用ショートカット)
+ ├─ chatbot_rag.html         (メインアプリ)
+ ├─ requirements.txt         (設定ファイル)
  ├─ rag_index.json           (自動生成される検索用データ)
  │
- ├─ scripts/                 (★重要：Pythonスクリプトはこの中)
+ ├─ scripts/                 (インデックス生成スクリプト)
  │   └─ build_rag_index.py
  │
  └─ data/                    (★重要：読み込ませたい資料は全てここに入れる)
@@ -78,7 +79,6 @@ pip install -r requirements.txt
 **資料を追加・更新した場合は、必ずこの手順を実行してください。**
 
 PowerShell（管理者）で以下を実行します：
-※ `--root data` と指定することで、資料フォルダのみを的確に学習させます。
 
 ```powershell
 python scripts/build_rag_index.py --root data --out rag_index.json
@@ -93,27 +93,18 @@ python scripts/build_rag_index.py --root data --out rag_index.json --api-key "�
 
 
 
-### Step 4: ローカルサーバーの起動
+### Step 4: アプリケーションの起動
 
-ブラウザのセキュリティ制限（CORSエラー）を回避するため、簡易Webサーバーを立ち上げます。
+フォルダ内にある **`start_presentation.bat`** をダブルクリックします。
 
-PowerShell（管理者）で以下を実行します：
+* 自動的に「黒い画面（サーバー）」が立ち上がり、続いて「ブラウザ」が開いてシステムが表示されます。
+* ⚠️ **注意:** 黒い画面はシステムの裏側で動いているサーバーですので、**閉じずにそのまま** にしてください（閉じると停止します）。
 
-```powershell
-python -m http.server 8000
+### Step 5: コンサルテーションの開始
 
-```
-
-> **成功確認:** `Serving HTTP on :: port 8000 ...` と表示されればOKです。
-> ⚠️ **注意:** このPowerShellウィンドウは **閉じずにそのまま** にしてください（閉じると停止します）。
-
-### Step 5: アプリケーションの開始と認証
-
-1. ブラウザ（Chrome または Edge 推奨）を開きます。
-2. アドレスバーに以下のURLを入力してアクセスします。
-**[http://localhost:8000/chatbot_rag.html](https://www.google.com/search?q=http://localhost:8000/chatbot_rag.html)**
-3. 画面右下の **チャットアイコン（💬）** をクリックします。
-4. **「Gemini API Key Required」** という画面が表示されますので、**Step 1** で取得したキーを入力し、「Start Consultation」をクリックしてください。
+1. ブラウザ画面右下の **チャットアイコン（💬）** をクリックします。
+2. **「Gemini API Key Required」** という画面が表示されます。
+3. **Step 1** で取得したキーを入力し、「Start Consultation」をクリックしてください。
 * これによりAI機能が有効化されます。
 
 
@@ -122,10 +113,10 @@ python -m http.server 8000
 
 ## ❓ よくある質問とトラブルシューティング
 
-### Q. HTMLファイルをダブルクリックして開いてはいけませんか？
+### Q. HTMLファイルを直接ダブルクリックしてはいけませんか？
 
 **A. はい、いけません。**
-現代のブラウザのセキュリティ仕様により、ローカルファイル（`file://`）からデータファイル（`rag_index.json`）を読み込むことはブロックされます。必ず **Step 4** のサーバー経由（`http://`）でアクセスしてください。
+セキュリティ制限により、直接開くと資料データが読み込めません。必ず **`start_presentation.bat`** から起動するか、サーバー経由（`http://localhost:8000`）でアクセスしてください。
 
 ### Q. チャットボットが「参照ファイル」を表示しません。
 
@@ -141,8 +132,12 @@ python -m http.server 8000
 
 ### 運用コマンド・チートシート
 
-| 目的 | 実行コマンド (管理者権限PowerShell) |
+| 目的 | 方法 |
 | --- | --- |
-| **通常起動**（サーバー立ち上げ） | `python -m http.server 8000` |
+| **システムの起動** | `start_presentation.bat` をダブルクリック |
 | **資料更新**（高速・無料） | `python scripts/build_rag_index.py --root data --out rag_index.json` |
 | **資料更新**（高精度・API必須） | `python scripts/build_rag_index.py --root data --out rag_index.json --api-key "KEY"` |
+
+```
+
+```
