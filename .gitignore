@@ -1,0 +1,14 @@
+# Python caches
+__pycache__/
+*.py[cod]
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# API Key config (もしあれば)
+.env
+config.json
+
+# (Optional) インデックスに機密情報を含む場合はコメントアウトを外して除外する
+# rag_index.json

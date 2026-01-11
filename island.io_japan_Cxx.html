@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Island.io 経営層向けプレゼンテーション</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007BFF;
+            --secondary: #28A745;
+            --accent: #FFC107;
+            --bg: #FFFFFF;
+            --text: #333333;
+            --gray-light: #f8f9fa;
+            --slide-width: 1280px;
+            --slide-height: 720px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            color: var(--text);
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .presentation-container {
+            width: var(--slide-width);
+            height: var(--slide-height);
+            background-color: var(--bg);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            padding: 60px 80px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 1;
+        }
+
+        /* Typography */
+        h1,
+        h2,
+        h3 {
+            font-family: 'Montserrat', sans-serif;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 48px;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+
+        h2 {
+            font-size: 36px;
+            color: var(--text);
+            border-left: 8px solid var(--primary);
+            padding-left: 20px;
+        }
+
+        p {
+            font-size: 24px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            font-size: 22px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        li::before {
+            content: "•";
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 30px;
+            position: absolute;
+            left: 0;
+            top: -5px;
+        }
+
+        /* Components */
+        .callout {
+            background-color: #e3f2fd;
+            border-left: 6px solid var(--accent);
+            padding: 20px 30px;
+            font-size: 24px;
+            font-weight: 500;
+            margin-top: auto;
+            border-radius: 0 8px 8px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            font-size: 20px;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px;
+            text-align: left;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--gray-light);
+        }
+
+        .highlight-text {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .alert-text {
+            color: #dc3545;
+            font-weight: 700;
+        }
+
+        /* Specific Slide Layouts */
+        .title-slide {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+
+        .title-slide h1 {
+            font-size: 64px;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .title-slide h2 {
+            font-size: 32px;
+            font-weight: 400;
+            color: var(--primary);
+            border: none;
+            padding: 0;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            height: 100%;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-top: 5px solid var(--primary);
+        }
+
+        .stat-box {
+            background-color: var(--primary);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .stat-number {
+            font-size: 48px;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        /* Navigation */
+        .nav-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        /* Slide specific styles */
+        .comparison-table td:nth-child(2),
+        .comparison-table td:nth-child(3) {
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .comparison-table td:nth-child(2) {
+            color: #dc3545;
+        }
+
+        /* Bad */
+        .comparison-table td:nth-child(3) {
+            color: var(--secondary);
+        }
+
+        /* Good */
+    </style>
+</head>
+
+<body>
+
+    <div class="presentation-container">
+        <!-- Title Slide -->
+        <div class="slide title-slide active" id="slide-0">
+            <h1>Island.io<br>経営層向けプレゼンテーション</h1>
+            <h2>IT予算を「守りの固定費」から「攻めの成長投資」に転換する</h2>
+            <div style="margin-top: 50px; font-size: 20px; color: #666;">
+                【統合最終版】<br>
+                対象：CEO、CFO、CIO、CISO、経営企画担当役員
+            </div>
+        </div>
+
+        <!-- Slide 1 -->
+        <div class="slide" id="slide-1">
+            <h2>御社のIT予算、年間5,000万円が「蒸発」しています</h2>
+            <div class="grid-layout">
+                <div>
+                    <p><strong>【衝撃的な事実】</strong><br>年間セキュリティ投資合計：<span class="highlight-text">約1億300万円</span></p>
+                    <ul>
+                        <li>ファイアウォール：約800万円</li>
+                        <li>仮想デスクトップ（VDI）：約6,500万円</li>
+                        <li>ネットワーク監視（SASE）：約3,000万円</li>
+                    </ul>
+                    <p style="margin-top:30px; font-size: 20px; border-left: 4px solid #dc3545; padding-left: 15px;">
+                        しかし、実際の情報漏えいの<strong>83%</strong>は、これらの対策では防げない<strong>「ブラウザの中」</strong>で起きています。
+                    </p>
+                </div>
+                <div>
+                    <table>
+                        <tr>
+                            <th>対策済み領域</th>
+                            <th>投資額</th>
+                            <th>漏えい率</th>
+                        </tr>
+                        <tr>
+                            <td>NW入口・出口</td>
+                            <td>3,800万円</td>
+                            <td>17%</td>
+                        </tr>
+                        <tr>
+                            <td>端末管理(VDI)</td>
+                            <td>6,500万円</td>
+                            <td>0%</td>
+                        </tr>
+                        <tr style="background-color: #fff3cd;">
+                            <td><strong>ブラウザ内操作</strong></td>
+                            <td class="alert-text">0円</td>
+                            <td class="alert-text">83%</td>
+                        </tr>
+                    </table>
+                    <p style="font-size:18px;">コピペ、スクショ、個人メール転送...<br>最もリスクが高い場所に、予算ゼロ。</p>
+                </div>
+            </div>
+            <div class="callout">
+                <i class="fas fa-lightbulb" style="color: var(--accent);"></i>
+                本日の提案：この「見えない穴」を塞ぎ、同時に年間5,000万円のコストを削減する方法をご紹介します。
+            </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="slide" id="slide-2">
+            <h2>VDI（仮想デスクトップ）—— なぜ高いのに効果がないのか？</h2>
+            <div class="grid-layout">
+                <div>
+                    <p><strong>【コストの現実】</strong> 3年間合計：<span class="alert-text" style="font-size:32px;">2億5,500万円</span>
+                    </p>
+                    <table>
+                        <tr>
+                            <th>項目</th>
+                            <th>単年</th>
+                            <th>3年合計</th>
+                        </tr>
+                        <tr>
+                            <td>ライセンス</td>
+                            <td>3,000万</td>
+                            <td>9,450万</td>
+                        </tr>
+                        <tr>
+                            <td>サーバー</td>
+                            <td>2,000万</td>
+                            <td>6,300万</td>
+                        </tr>
+                        <tr>
+                            <td>運用保守</td>
+                            <td>1,500万</td>
+                            <td>4,725万</td>
+                        </tr>
+                        <tr>
+                            <td>初期構築</td>
+                            <td>5,000万</td>
+                            <td>5,000万</td>
+                        </tr>
+                    </table>
+                    <p style="font-size:16px;">※AIワークロードのクラウド移行により、サーバーコストはさらに上昇傾向。</p>
+                </div>
+                <div>
+                    <div class="card" style="background-color: #fff3cd; border-color: #ffc107;">
+                        <h3><i class="fas fa-exclamation-triangle"></i> 社員の本音（生産性への影響）</h3>
+                        <ul style="margin-top:20px;">
+                            <li>「重すぎて仕事にならない」 (78%)</li>
+                            <li>「自宅PCで作業したい」 (65%)</li>
+                            <li>「接続切れで納期遅延」 (43%)</li>
+                        </ul>
+                        <p style="margin-top:20px; font-weight:bold;">機会損失：年間 約6億円相当</p>
+                    </div>
+                </div>
+            </div>
+            <div class="callout">
+                <i class="fas fa-question-circle"></i> 経営への問い：「この2億5,500万円は、本当に必要なコストですか？」
+            </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="slide" id="slide-3">
+            <h2>Island.io —— ブラウザそのものを「セキュリティ装置」に変える</h2>
+            <p style="text-align: center; font-size: 28px; margin-bottom: 40px;">
+                従来の発想：「外から守る」 → <span class="highlight-text">Islandの発想：「ブラウザ自体に安全装置を組み込む」</span>
+            </p>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+                <div class="card" style="width: 30%;">
+                    <i class="fas fa-eye" style="font-size: 40px; color: var(--primary); margin-bottom: 15px;"></i>
+                    <h3>1. 自動認識</h3>
+                    <p style="font-size: 18px;">機密情報（契約書・顧客データ）を開いた瞬間、自動で保護モードへ。</p>
+                </div>
+                <div class="card" style="width: 30%; border-top-color: var(--secondary);">
+                    <i class="fas fa-shield-alt"
+                        style="font-size: 40px; color: var(--secondary); margin-bottom: 15px;"></i>
+                    <h3>2. 自動防止</h3>
+                    <p style="font-size: 18px;">保護モード中は危険操作を禁止。<br>❌コピペ ❌スクショ ❌外部AI</p>
+                </div>
+                <div class="card" style="width: 30%; border-top-color: var(--accent);">
+                    <i class="fas fa-history" style="font-size: 40px; color: var(--accent); margin-bottom: 15px;"></i>
+                    <h3>3. 自動記録</h3>
+                    <p style="font-size: 18px;">「誰が・いつ・何を」全て記録。監査対応を完全自動化。</p>
+                </div>
+            </div>
+
+            <div class="callout" style="background-color: #f8f9fa; border-left-color: #333;">
+                これは「監視」ではありません。「自動車のエアバッグ」です。普段は存在を感じさせず、危険な瞬間だけ社員を守ります。
+            </div>
+        </div>
+
+        <!-- Slide 4 -->
+        <div class="slide" id="slide-4">
+            <h2>ROI 344% —— 3年間で2億円の価値を生み出す投資</h2>
+            <div class="grid-layout">
+                <div>
+                    <h3><i class="fas fa-chart-line"></i> 投資対効果 (Forrester調査)</h3>
+                    <div class="stat-box">
+                        <span class="stat-number">344%</span>
+                        <span class="stat-label">ROI (投資回収期間: 6ヶ月未満)</span>
+                    </div>
+                    <ul>
+                        <li><strong>VDI廃止：</strong> 1億8,500万円削減</li>
+                        <li><strong>インシデント対応減：</strong> 4,200万円削減</li>
+                        <li><strong>コンプラ対応減：</strong> 2,000万円削減</li>
+                    </ul>
+                    <p
+                        style="font-size: 20px; font-weight: bold; color: var(--secondary); text-align: center; margin-top: 20px;">
+                        1円投資すると3.44円になって返ってくる
+                    </p>
+                </div>
+                <div>
+                    <h3><i class="fas fa-balance-scale"></i> 比較シミュレーション</h3>
+                    <table class="comparison-table">
+                        <tr>
+                            <th>評価項目</th>
+                            <th>VDI維持</th>
+                            <th>Island導入</th>
+                        </tr>
+                        <tr>
+                            <td>3年間総コスト</td>
+                            <td>2.55億円</td>
+                            <td>0.72億円</td>
+                        </tr>
+                        <tr>
+                            <td>セキュリティ</td>
+                            <td>穴あり</td>
+                            <td>全領域カバー</td>
+                        </tr>
+                        <tr>
+                            <td>生産性</td>
+                            <td>70%</td>
+                            <td>100%以上</td>
+                        </tr>
+                        <tr>
+                            <td>社員満足度</td>
+                            <td>低い</td>
+                            <td>高い</td>
+                        </tr>
+                        <tr style="border-top: 2px solid #333;">
+                            <td><strong>差分</strong></td>
+                            <td colspan="2" style="text-align: center; font-size: 24px; color: var(--secondary);">
+                                利益創出：約1.8億円
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="callout">
+                <i class="fas fa-money-bill-wave"></i> CFOへの提案：これは「予算申請」ではなく、既存予算の使い道を変えて2億円を生む「予算最適化」です。
+            </div>
+        </div>
+
+        <!-- Slide 5 -->
+        <div class="slide" id="slide-5">
+            <h2>生成AI活用 —— 「禁止」から「全社推進」へ</h2>
+            <div class="grid-layout">
+                <div>
+                    <h3><i class="fas fa-ban" style="color: #dc3545;"></i> 現状の矛盾</h3>
+                    <ul>
+                        <li>経営：「AIで生産性を上げろ」</li>
+                        <li>現場：「危険だから禁止されている」</li>
+                        <li>結果：シャドーITの横行、競合への遅れ</li>
+                    </ul>
+                    <div class="card" style="margin-top: 30px; background-color: #e3f2fd;">
+                        <h3><i class="fas fa-check-circle" style="color: var(--primary);"></i> Islandの解決策</h3>
+                        <p>入力内容をリアルタイムで自動検査・マスキング。</p>
+                        <div
+                            style="background: white; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 16px;">
+                            入力：「<strong>ABC社</strong>との<strong>3億円</strong>の契約について...」<br>
+                            ↓ 自動変換 ↓<br>
+                            送信：「<strong>[顧客名]</strong>との<strong>[金額]</strong>の契約について...」
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3><i class="fas fa-rocket"></i> 導入効果 (1,000名規模)</h3>
+                    <div class="stat-box" style="background-color: var(--secondary);">
+                        <span class="stat-number">3億円</span>
+                        <span class="stat-label">年間生産性向上効果</span>
+                    </div>
+                    <table>
+                        <tr>
+                            <td>資料作成時間</td>
+                            <td style="color:var(--secondary); font-weight:bold;">40% 短縮</td>
+                        </tr>
+                        <tr>
+                            <td>メール返信</td>
+                            <td style="color:var(--secondary); font-weight:bold;">2倍 速く</td>
+                        </tr>
+                        <tr>
+                            <td>市場調査</td>
+                            <td style="color:var(--secondary); font-weight:bold;">60% 短縮</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="callout">
+                <i class="fas fa-robot"></i> 「AIを止める」のではなく、「AIを安全に使いこなす」企業へ。これが2026年の競争優位です。
+            </div>
+        </div>
+
+        <!-- Slide 6 -->
+        <div class="slide" id="slide-6">
+            <h2>グローバル取引の「新しい参加条件」</h2>
+            <div class="grid-layout">
+                <div>
+                    <h3><i class="fas fa-globe"></i> 2025年8月〜 新しい現実</h3>
+                    <p>EU AI法、サイバーレジリエンス法などが施行。</p>
+                    <div class="card" style="border-top-color: #dc3545;">
+                        <ul style="font-size: 18px;">
+                            <li style="color: #dc3545;">データの取り扱いを完全記録</li>
+                            <li style="color: #dc3545;">外部監査で即座に証明</li>
+                            <li style="color: #dc3545; font-weight: bold;">違反 ＝ 取引停止 / 巨額罰金</li>
+                        </ul>
+                    </div>
+                    <p style="margin-top: 15px;">日本企業の67%は未対応。手遅れになる前に。</p>
+                </div>
+                <div>
+                    <h3><i class="fas fa-file-contract"></i> Islandで自動対応</h3>
+                    <ul>
+                        <li><strong>操作記録：</strong>ブロックチェーン技術で改ざん不可能に自動保存。</li>
+                        <li><strong>レポート：</strong>監査対応時間を「数週間」から「数時間」へ。</li>
+                        <li><strong>データ主権：</strong>各国の規制に自動追従。</li>
+                    </ul>
+                    <div
+                        style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin-top: 20px; color: #155724;">
+                        <strong>【製造業A社の事例】</strong><br>
+                        導入2週間で対応完了 → 取引継続＆新規案件3件獲得
+                    </div>
+                </div>
+            </div>
+            <div class="callout" style="border-left-color: #dc3545; background-color: #f8d7da; color: #721c24;">
+                <i class="fas fa-exclamation-circle"></i> 警告：期限まであと7ヶ月。対応の遅れは、グローバルサプライチェーンからの除外を意味します。
+            </div>
+        </div>
+
+        <!-- Slide 7 -->
+        <div class="slide" id="slide-7">
+            <h2>導入プロセス —— リスクゼロで始められる理由</h2>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+                <div class="card" style="width: 30%; text-align: center;">
+                    <h3 style="color: var(--primary);">Phase 1: トライアル</h3>
+                    <p><strong>期間: 30日間</strong></p>
+                    <p>実際の業務環境で試用<br>コストゼロ<br>既存影響なし</p>
+                </div>
+                <div style="font-size: 40px; color: #ccc; align-self: center;">➜</div>
+                <div class="card" style="width: 30%; text-align: center;">
+                    <h3 style="color: var(--primary);">Phase 2: 段階展開</h3>
+                    <p><strong>期間: 3~6ヶ月</strong></p>
+                    <p>パイロット(100名)<br>↓<br>全社展開(1,000名)</p>
+                </div>
+                <div style="font-size: 40px; color: #ccc; align-self: center;">➜</div>
+                <div class="card" style="width: 30%; text-align: center; background-color: #e3f2fd;">
+                    <h3 style="color: var(--secondary);">安心保証</h3>
+                    <p><strong>リスクゼロ</strong></p>
+                    <p>社員研修不要<br>24/365 日本語サポート<br><strong>全額返金保証</strong></p>
+                </div>
+            </div>
+
+            <div class="grid-layout">
+                <div>
+                    <h3><i class="fas fa-thumbs-up"></i> 経営者の懸念を解消</h3>
+                    <ul>
+                        <li>「業務が止まる？」→ 既存と並行稼働で影響なし</li>
+                        <li>「使いにくい？」→ 見た目はChromeと同じ</li>
+                        <li>「失敗したら？」→ アンインストールで即元通り</li>
+                    </ul>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <p style="font-size: 28px; font-weight: bold; color: var(--primary);">
+                        まずは無料で試して、<br>効果を確認してください。
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8 -->
+        <div class="slide" id="slide-8">
+            <h2>経営者の皆様への最終的な選択肢</h2>
+            <div class="grid-layout" style="gap: 20px;">
+                <div class="card" style="border-top: 8px solid #6c757d; background-color: #f8f9fa;">
+                    <h3 style="color: #6c757d;">選択肢A：現状維持</h3>
+                    <ul style="font-size: 18px;">
+                        <li style="color: #dc3545;">VDIに3年で約2億円支払い</li>
+                        <li style="color: #dc3545;">社員の生産性低下を受け入れ</li>
+                        <li style="color: #dc3545;">情報漏えいリスク放置</li>
+                        <li style="color: #dc3545;">AI活用禁止で競合に遅れ</li>
+                    </ul>
+                    <p style="margin-top: 20px; font-weight: bold; color: #6c757d;">3年後：守りのコストで疲弊し、取り残される。</p>
+                </div>
+                <div class="card"
+                    style="border-top: 8px solid var(--primary); background-color: #e3f2fd; transform: scale(1.05);">
+                    <h3 style="color: var(--primary);">選択肢B：Islandへの転換</h3>
+                    <ul style="font-size: 18px;">
+                        <li>3年で1.5億円コスト削減</li>
+                        <li>削減分を成長投資へ</li>
+                        <li>情報漏えいリスク 85%減</li>
+                        <li>AI全社活用で生産性向上</li>
+                    </ul>
+                    <p style="margin-top: 20px; font-weight: bold; color: var(--primary); font-size: 24px;">
+                        3年後：圧倒的な競争優位を確立。</p>
+                </div>
+            </div>
+            <div class="callout" style="margin-top: 40px;">
+                <i class="fas fa-gavel"></i> 「セキュリティ投資を、コストセンターのままにしますか？ それとも、成長を加速させる経営資産に変えますか？」
+            </div>
+        </div>
+
+        <!-- Slide 9 -->
+        <div class="slide" id="slide-9">
+            <h2>次のステップ —— 今日から始められること</h2>
+            <div style="text-align: center; margin-bottom: 40px;">
+                <p style="font-size: 32px; font-weight: bold; color: var(--text);">今日、決めていただきたいことは一つだけ。</p>
+                <p style="font-size: 48px; font-weight: 800; color: var(--primary); margin: 20px 0;">「無料トライアルを試してみる」</p>
+                <p style="font-size: 20px;">契約不要。予算承認不要。リスクゼロ。</p>
+            </div>
+
+            <div class="grid-layout">
+                <div class="card">
+                    <h3><i class="fas fa-calendar-alt"></i> 今後のスケジュール</h3>
+                    <ol style="font-size: 20px; line-height: 2; padding-left: 20px;">
+                        <li><strong>今日〜1週間：</strong> 無料トライアル開始</li>
+                        <li><strong>2週間後：</strong> 経営層向けデモ＆ROI試算</li>
+                        <li><strong>1ヶ月後：</strong> 詳細導入計画の策定</li>
+                    </ol>
+                </div>
+                <div class="card" style="background-color: var(--secondary); color: white; border: none;">
+                    <h3><i class="fas fa-phone"></i> お問い合わせ特典</h3>
+                    <p style="font-size: 24px; margin-top: 20px;">
+                        本日トライアルをご決断いただいた企業様へ：
+                    </p>
+                    <ul style="margin-top: 20px;">
+                        <li style="color: white; font-weight: bold;">専任コンサルタントによる無料診断</li>
+                        <li style="color: white; font-weight: bold;">御社専用 ROI試算レポート作成</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="nav-controls">
+            <button class="nav-btn" onclick="changeSlide(-1)">❮</button>
+            <button class="nav-btn" onclick="changeSlide(1)">❯</button>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+
+        function changeSlide(direction) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide += direction;
+
+            if (currentSlide < 0) currentSlide = slides.length - 1;
+            if (currentSlide >= slides.length) currentSlide = 0;
+
+            slides[currentSlide].classList.add('active');
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') changeSlide(1);
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+        });
+    </script>
+
+</body>
+
+</html>
