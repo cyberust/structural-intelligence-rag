@@ -12,7 +12,7 @@
 - pdfplumber: PDF 解析担当
 - torch: 計算バックエンド
 
-###　B. ファイル構成
+### B. ファイル構成
 本システムは以下の 3 つのファイルで構成されます。
 
 - build_rag_index_final.py (作成済み)
