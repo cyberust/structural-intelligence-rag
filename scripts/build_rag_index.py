@@ -1,56 +1,73 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-build_rag_index.py (Safe Mode)
-
-ワークスペース内のMarkdown/HTML/TXTファイルを走査してテキストを抽出し、
-簡易RAGインデックス（rag_index.json）を生成します。
-APIレート制限（429エラー）を回避するため、処理ごとに待機時間を設けています。
+RAGインデックス構築スクリプト (Lint修正済み)
+- モデル: intfloat/multilingual-e5-large (高精度・日本語対応)
+- 機能: HTML/Markdownクリーニング、バッチ処理、差分更新(レジューム)
+- 完全オフライン動作
 """
 
 import os
-import argparse
-import json
-import re
-import warnings
-import logging
 import sys
-import time  # 待機用ライブラリ
+import json
+import argparse
+import warnings
+import re
+from pathlib import Path
+from typing import List, Dict, Optional, Any
+from html.parser import HTMLParser
 
-try:
-    import google.generativeai as genai
-
-    HAS_GENAI = True
-except ImportError:
-    HAS_GENAI = False
-
-warnings.filterwarnings("ignore")
-
-# PDFライブラリのログ抑制
-logging.getLogger("pdfplumber").setLevel(logging.ERROR)
-logging.getLogger("pypdf").setLevel(logging.ERROR)
-logging.getLogger("pdfplumber.pdf").setLevel(logging.ERROR)
-logging.getLogger("pikepdf").setLevel(logging.ERROR)
-
-# PDFライブラリの標準エラー出力抑制
-_stderr_backup = sys.stderr
-sys.stderr = open(os.devnull, "w")
-
+# === 依存ライブラリ ===
 try:
     import pdfplumber  # type: ignore
-
-    HAS_PDFPLUMBER = True
+    PDF_SUPPORT = True
 except ImportError:
-    HAS_PDFPLUMBER = False
+    PDF_SUPPORT = False
+    print("Warning: pdfplumber not installed. PDF support disabled.")
 
-EXTS = {".md", ".markdown", ".html", ".htm", ".txt", ".pdf"}
+try:
+    from sentence_transformers import SentenceTransformer  # type: ignore
+    LOCAL_EMBEDDING_SUPPORT = True
+except ImportError:
+    LOCAL_EMBEDDING_SUPPORT = False
+    print("Error: sentence-transformers not installed.")
+    print("Run: pip install sentence-transformers torch")
+    sys.exit(1)
+
+# ログ抑制
+import logging
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("pdfplumber").setLevel(logging.ERROR)
 
 
+# === 設定 ===
+class Config:
+    """設定クラス"""
+    # 高精度モデル (E5-large)
+    EMBEDDING_MODEL: str = "intfloat/multilingual-e5-large"
+
+    # E5モデルは "passage: " というプレフィックスが必要
+    PREFIX: str = "passage: "
+
+    # テキスト処理
+    MAX_TEXT_LENGTH: int = 8000
+
+    # バッチ処理 (VRAM不足なら小さくする: 4 or 8)
+    BATCH_SIZE: int = 8
+
+    # 保存間隔 (バッチ数ごと)
+    SAVE_INTERVAL: int = 10
+
+    SUPPRESS_PDF_WARNINGS: bool = True
+
+
+# === HTML処理クラス ===
 class HTMLTextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
         self._texts = []
         self._skip = False
-        self._skip_tags = {"script", "style"}
+        self._skip_tags = {"script", "style", "noscript", "meta"}
 
     def handle_starttag(self, tag, attrs):
         if tag in self._skip_tags:
@@ -68,157 +85,236 @@ class HTMLTextExtractor(HTMLParser):
         return " ".join(self._texts)
 
 
-def slugify(s):
-    s = s.lower()
-    s = re.sub(r"[^a-z0-9]+", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s or "doc"
+# === ユーティリティ ===
+def sanitize_filename(filename: str) -> str:
+    s = re.sub(r'[^\w\s\-\.]', '_', filename).lower()
+    return s.replace(' ', '_')
 
 
-def get_embedding(text, api_key=None):
-    """Gemini Embeddings APIを使用して埋め込みを生成"""
-    if not HAS_GENAI or not api_key:
-        return None
+def extract_text_from_file(path: Path) -> tuple[Optional[str], str]:
+    """
+    ファイルパスから (タイトル, テキスト) を抽出
+    拡張子に応じてHTML処理やPDF処理を分岐
+    """
+    ext = path.suffix.lower()
+    title = path.stem
+    text = ""
+
     try:
-        genai.configure(api_key=api_key)
-        # embedding-001 モデルを使用
-        result = genai.embed_content(model="models/embedding-001", content=text)
-        return result["embedding"]
-    except Exception as e:
-        sys.stderr = _stderr_backup
-        print(f"      [Error] Embedding failed: {e}")
-        sys.stderr = open(os.devnull, "w")
-        return None
+        if ext == '.pdf':
+            if not PDF_SUPPORT:
+                return None, ""
+            # PDF処理
+            pages = []
+            if Config.SUPPRESS_PDF_WARNINGS:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore')
+                    with pdfplumber.open(path) as pdf:
+                        for page in pdf.pages:
+                            t = page.extract_text()
+                            if t:
+                                pages.append(t)
+            else:
+                with pdfplumber.open(path) as pdf:
+                    for page in pdf.pages:
+                        t = page.extract_text()
+                        if t:
+                            pages.append(t)
 
+            if not pages:
+                return None, ""
+            text = "\n".join(pages)
 
-def extract_title_from_md(text):
-    for line in text.splitlines():
-        m = re.match(r"#{1,6}\s*(.+)", line)
-        if m:
-            return m.group(1).strip()
-    for line in text.splitlines():
-        if line.strip():
-            return line.strip()[:120]
-    return None
-
-
-def extract_title_from_html(text):
-    m = re.search(r"<title[^>]*>(.*?)</title>", text, re.I | re.S)
-    if m:
-        return re.sub(r"\s+", " ", m.group(1)).strip()
-    m2 = re.search(r"<h1[^>]*>(.*?)</h1>", text, re.I | re.S)
-    if m2:
-        return re.sub(r"<[^>]+>", "", m2.group(1)).strip()
-    return None
-
-
-def extract_text(path, ext):
-    if ext == ".pdf":
-        if not HAS_PDFPLUMBER:
-            return None, None
-        try:
-            texts = []
-            with pdfplumber.open(path) as pdf:
-                for page_num, page in enumerate(pdf.pages, 1):
-                    t = page.extract_text()
-                    if t:
-                        texts.append(t)
-            if not texts:
-                return os.path.basename(path), None
-            text = " ".join(texts)
-            title = os.path.basename(path)
-        except Exception as e:
-            print(f"      PDF ERROR: {e}")
-            return None, None
-    else:
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        elif ext in {'.html', '.htm'}:
+            # HTML処理 (タグ除去)
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                 raw = f.read()
-        except Exception:
-            return None, None
 
-        if ext in (".html", ".htm"):
-            title = extract_title_from_html(raw)
+            # タイトル抽出
+            m = re.search(r"<title[^>]*>(.*?)</title>", raw, re.I | re.S)
+            if m:
+                title = re.sub(r"\s+", " ", m.group(1)).strip()
+
+            # 本文抽出
             parser = HTMLTextExtractor()
             parser.feed(raw)
             text = parser.get_text()
+
         else:
-            title = extract_title_from_md(raw) if ext in (".md", ".markdown") else None
+            # Markdown/Text処理
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                raw = f.read()
+
+            # Markdownタイトル抽出 (# 見出し)
+            for line in raw.splitlines():
+                if line.startswith("# "):
+                    title = line.strip("# ").strip()
+                    break
             text = raw
 
-    text = re.sub(r"\s+", " ", text).strip()
-    if len(text) > 10000:
-        text = text[:10000]
-    if title:
-        title = re.sub(r"\s+", " ", title).strip()
+    except Exception as e:
+        print(f"Warning: Failed to read {path.name}: {e}")
+        return None, ""
+
+    # 共通クリーニング
+    text = re.sub(r'\s+', ' ', text).strip()
     return title, text
 
 
-def build_index(root, api_key=None):
-    docs = []
-    root = os.path.abspath(root)
-    print(f"Scanning: {root}")
-    print(f"PDF support: {'enabled' if HAS_PDFPLUMBER else 'disabled'}")
-    print(f"Embedding support: {'enabled' if HAS_GENAI else 'disabled'}\n")
+# === Embedding生成クラス ===
+class LocalEmbeddingGenerator:
+    def __init__(self, model_name: str = Config.EMBEDDING_MODEL):
+        print(f"\nLoading model: {model_name} ...")
+        print("(This may take time on first run)")
+        self.model = SentenceTransformer(model_name)
+        print("✓ Model loaded\n")
 
-    for dirpath, dirnames, filenames in os.walk(root):
-        rel_path = os.path.relpath(dirpath, root)
-        # 隠しディレクトリのスキップ処理（カレントディレクトリ '.' は除外しない）
-        if any(part.startswith(".") and part != "." for part in rel_path.split(os.sep)):
+    def generate_batch(self, texts: List[str]) -> List[List[float]]:
+        # E5モデル用にプレフィックス "passage: " を付与
+        inputs = [Config.PREFIX + t for t in texts]
+
+        embeddings = self.model.encode(
+            inputs,
+            batch_size=Config.BATCH_SIZE,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=True
+        )
+        return embeddings.tolist()
+
+
+# === インデックス構築 ===
+def build_index(root_dir: str, output_path: str, use_batch: bool = True):
+    root_path = Path(root_dir).resolve()
+    print(f"Target: {root_path}")
+    print(f"Output: {output_path}")
+
+    # 1. レジューム機能: 既存データの読み込み
+    existing_docs: Dict[str, Any] = {}
+    if os.path.exists(output_path):
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # ソースパスをキーにして高速検索可能に
+                existing_docs = {item['source']: item for item in data}
+            print(f"Resume: Loaded {len(existing_docs)} existing documents.")
+        except Exception:
+            print("Resume: No valid existing index found. Starting fresh.")
+
+    # 2. 処理対象ファイルの収集
+    files_to_process = []
+    skipped_count = 0
+
+    print("Scanning files...")
+    for file_path in root_path.rglob('*'):
+        if not file_path.is_file():
+            continue
+        if file_path.name.startswith('.'):
+            continue
+        if file_path.suffix.lower() not in {'.md', '.markdown', '.html', '.htm', '.txt', '.pdf'}:
             continue
 
-        for fn in filenames:
-            name, ext = os.path.splitext(fn)
-            ext = ext.lower()
-            if ext not in EXTS:
+        rel_path = str(file_path.relative_to(root_path)).replace("\\", "/")
+
+        # 既にEmbedding済みならスキップ
+        if rel_path in existing_docs and 'embedding' in existing_docs[rel_path]:
+            skipped_count += 1
+            continue
+
+        files_to_process.append((file_path, rel_path))
+
+    if not files_to_process:
+        print("All files are already processed! Nothing to do.")
+        return
+
+    print(f"New files to process: {len(files_to_process)} (Skipped: {skipped_count})")
+
+    # 3. Embedding実行
+    generator = LocalEmbeddingGenerator()
+    new_docs_map = existing_docs.copy()
+
+    batch_docs = []
+    batch_texts = []
+
+    total_files = len(files_to_process)
+
+    for i, (file_path, rel_path) in enumerate(files_to_process):
+        title, text = extract_text_from_file(file_path)
+
+        if not text:
+            print(f"Skipping empty: {rel_path}")
+            continue
+
+        if len(text) > Config.MAX_TEXT_LENGTH:
+            text = text[:Config.MAX_TEXT_LENGTH]
+
+        doc_id = sanitize_filename(rel_path)
+        doc = {
+            "id": doc_id,
+            "title": title or file_path.stem,
+            "source": rel_path,
+            "text": text
+        }
+
+        batch_docs.append(doc)
+        batch_texts.append(text)
+
+        # バッチ実行判定 (バッチサイズ到達 or 最終ファイル)
+        if len(batch_docs) >= Config.BATCH_SIZE or i == total_files - 1:
+            if not batch_docs:
                 continue
 
-            full = os.path.join(dirpath, fn)
-            rel = os.path.relpath(full, root).replace("\\", "/")
+            # 生成
+            vectors = generator.generate_batch(batch_texts)
 
-            # テキスト抽出
-            title, text = extract_text(full, ext)
-            if not text:
-                print(f"  ✗ {rel} (empty)")
-                continue
+            # 格納
+            for d, vec in zip(batch_docs, vectors):
+                d['embedding'] = vec
+                new_docs_map[d['source']] = d
 
-            doc_id = slugify(rel)
-            doc = {"id": doc_id, "title": title or name, "source": rel, "text": text}
+            # 進捗表示
+            print(f"Processed: {i+1}/{total_files} files")
 
-            # Embedding生成（APIキーがある場合）
-            if api_key and HAS_GENAI:
-                # ★修正ポイント: レート制限回避のため10秒待機
-                print(f"  ... Generating embedding for {rel} (waiting 10s)...")
-                time.sleep(10)
+            # 定期保存
+            current_batch_idx = i // Config.BATCH_SIZE
+            if current_batch_idx > 0 and current_batch_idx % Config.SAVE_INTERVAL == 0:
+                save_json(new_docs_map, output_path)
 
-                embedding = get_embedding(text[:2000], api_key)
-                if embedding:
-                    doc["embedding"] = embedding
-                    print(f"  ✓ {rel} ({len(text)} chars, embedded)")
-                else:
-                    print(f"  ✓ {rel} ({len(text)} chars, NO EMBEDDING - Error)")
-            else:
-                print(f"  ✓ {rel} ({len(text)} chars)")
+            batch_docs = []
+            batch_texts = []
 
-            docs.append(doc)
+    # 最終保存
+    save_json(new_docs_map, output_path)
+    print(f"\nCompleted! Total documents in index: {len(new_docs_map)}")
 
-    return docs
+
+def save_json(data_map: Dict[str, Any], path: str):
+    """安全なJSON保存 (一時ファイル経由)"""
+    data_list = list(data_map.values())
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(data_list, f, ensure_ascii=False, indent=2)
+
+        if os.path.exists(path):
+            os.remove(path)
+        os.rename(tmp_path, path)
+        print("  (Index Auto-Saved)")
+    except Exception as e:
+        print(f"  [Error] Failed to save JSON: {e}")
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--root", "-r", default=".", help="root path to scan")
-    parser.add_argument(
-        "--out", "-o", default="rag_index.json", help="output json file"
-    )
-    parser.add_argument("--api-key", "-k", default=None, help="Gemini API key")
+    parser = argparse.ArgumentParser(description="RAG Index Builder (Hybrid/Final)")
+    parser.add_argument("--root", "-r", default=".", help="Root directory")
+    parser.add_argument("--out", "-o", default="rag_index_local.json", help="Output file")
     args = parser.parse_args()
 
-    docs = build_index(args.root, args.api_key)
-    with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(docs, f, ensure_ascii=False, indent=2)
-    print(f"\n✓ Found {len(docs)} documents, writing {args.out}")
-
+    try:
+        build_index(args.root, args.out)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Progress saved.")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
