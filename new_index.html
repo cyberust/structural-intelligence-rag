@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Island.io Strategic Presentation</title>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Roboto:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Roboto', 'Noto Sans JP', sans-serif;
+            background-color: #1f2937;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        /* Chat Scrollbar Hidden */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Markdown Styles */
+        .markdown-body ul {
+            list-style-type: disc;
+            padding-left: 1.5em;
+            margin-bottom: 1em;
+        }
+
+        .markdown-body p {
+            margin-bottom: 0.8em;
+        }
+
+        .markdown-body strong {
+            color: #2563EB;
+            font-weight: 600;
+        }
+
+        /* Cursor Animation */
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .typing-cursor::after {
+            content: '▋';
+            display: inline-block;
+            margin-left: 2px;
+            color: #2563EB;
+            animation: blink 1s step-start infinite;
+            vertical-align: baseline;
+        }
+
+        /* Animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Configuration ---
+        const EMBEDDING_MODEL = "models/text-embedding-004";
+        const GENERATION_MODEL = "models/gemini-2.5-flash-preview-09-2025";
+
+        // --- Colors ---
+        const C_PRIMARY = "text-blue-600";
+        const C_SECONDARY = "text-green-600";
+        const C_ACCENT = "text-yellow-500";
+        const C_ALERT = "text-red-600";
+
+        // --- Icons (Fixed) ---
+        const ICONS = {
+            ChevronLeft: <path d="M15 18l-6-6 6-6" />,
+            ChevronRight: <path d="M9 18l6-6-6-6" />,
+            Bot: <path d="M12 2a2 2 0 0 1 2 2v2h.5a3.5 3.5 0 1 1 3.5 3.5V11h-1V9.5a2.5 2.5 0 0 0-2.5-2.5H14V5a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v2h-.5A2.5 2.5 0 0 0 7 9.5V11H6V9.5A3.5 3.5 0 1 1 9.5 6H10V4a2 2 0 0 1 2-2zM9 13a1 1 0 0 0-1 1v4h8v-4a1 1 0 0 0-1-1H9z" />,
+            X: <path d="M18 6L6 18M6 6l12 12" />,
+            Send: <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />,
+            Lightbulb: <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.5 1.5-4.1C18 4.5 15.3 2 12 2S6 4.5 6 7.4c0 1.6.5 3.1 1.5 4.1.8.8 1.3 1.5 1.5 2.5" />,
+            ShieldAlert: <g><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></g>,
+            ChartLine: <path d="M3 3v18h18M18 17V9l-5 7-5-5-3 3" />,
+            Globe: <g><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></g>,
+            Rocket: <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09zM12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />,
+            Gavel: <path d="M14 13l-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 0 1 0-3L11 10M16 16l6-6M8 8l6-6" />,
+            CheckCircle: <g><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="M22 4L12 14.01l-3-3" /></g>,
+            Ban: <g><circle cx="12" cy="12" r="10" /><path d="M4.93 4.93l14.14 14.14" /></g>,
+            Eye: <g><path d="M1 12s4-8 11-8 11 8 11 8-11 8-11-8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></g>,
+            History: <g><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></g>,
+            Scale: <g><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" /><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" /><path d="M7 21h10" /><path d="M12 3v18" /><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" /></g>,
+            Phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.12 2h3a2 2 0 0 1 2 1.72 12.05 12.05 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.03 12.03 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />,
+            Calendar: <g><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></g>,
+            ThumbsUp: <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />,
+            FileText: <g><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></g>
+        };
+
+        const Icon = ({ name, size = 24, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {ICONS[name] || <circle cx="12" cy="12" r="10" />}
+            </svg>
+        );
+
+        function cosineSimilarity(vecA, vecB) {
+            if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+            let dot = 0, mA = 0, mB = 0;
+            for (let i = 0; i < vecA.length; i++) {
+                dot += vecA[i] * vecB[i];
+                mA += vecA[i] * vecA[i];
+                mB += vecB[i] * vecB[i];
+            }
+            return (mA === 0 || mB === 0) ? 0 : dot / (Math.sqrt(mA) * Math.sqrt(mB));
+        }
+
+        // --- Slide Components (Same as previous) ---
+        // (省略なしで記述)
+        const Slide0 = () => (
+            <div className="h-full flex flex-col justify-center items-center text-center bg-gradient-to-br from-gray-50 to-gray-200 px-20">
+                <h1 className="text-6xl font-bold text-gray-800 mb-6 font-Montserrat leading-tight">
+                    <span className={C_PRIMARY}>Island.io</span><br />経営層向けプレゼンテーション
+                </h1>
+                <h2 className={`text-3xl font-medium ${C_PRIMARY} mb-12`}>
+                    IT予算を「守りの固定費」から<br />「攻めの成長投資」に転換する
+                </h2>
+                <div className="mt-8 text-xl text-gray-500 border-t border-gray-300 pt-6">
+                    <p>【統合最終版】</p>
+                    <p>対象：CEO、CFO、CIO、CISO、経営企画担当役員</p>
+                </div>
+            </div>
+        );
+
+        const Slide1 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    御社のIT予算、年間5,000万円が「蒸発」しています
+                </h2>
+                <div className="grid grid-cols-2 gap-12 flex-1">
+                    <div>
+                        <p className="text-2xl mb-6">
+                            <strong>【衝撃的な事実】</strong><br />
+                            年間セキュリティ投資合計：<span className={`${C_PRIMARY} font-bold`}>約1億300万円</span>
+                        </p>
+                        <ul className="space-y-4 text-xl text-gray-700 ml-6 list-disc marker:text-blue-600">
+                            <li>ファイアウォール：約800万円</li>
+                            <li>仮想デスクトップ（VDI）：約6,500万円</li>
+                            <li>ネットワーク監視（SASE）：約3,000万円</li>
+                        </ul>
+                        <div className="mt-8 p-4 border-l-4 border-red-500 bg-red-50 text-xl">
+                            しかし、実際の情報漏えいの<strong>83%</strong>は、これらの対策では防げない<strong>「ブラウザの中」</strong>で起きています。
+                        </div>
+                    </div>
+                    <div>
+                        <table className="w-full text-lg border-collapse">
+                            <thead>
+                                <tr className="bg-blue-600 text-white">
+                                    <th className="p-3 text-left">対策済み領域</th>
+                                    <th className="p-3 text-left">投資額</th>
+                                    <th className="p-3 text-left">漏えい率</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr className="border-b">
+                                    <td className="p-3">NW入口・出口</td>
+                                    <td className="p-3">3,800万円</td>
+                                    <td className="p-3">17%</td>
+                                </tr>
+                                <tr className="border-b">
+                                    <td className="p-3">端末管理(VDI)</td>
+                                    <td className="p-3">6,500万円</td>
+                                    <td className="p-3">0%</td>
+                                </tr>
+                                <tr className="bg-yellow-100 font-bold border-b border-yellow-300">
+                                    <td className="p-3">ブラウザ内操作</td>
+                                    <td className={`p-3 ${C_ALERT}`}>0円</td>
+                                    <td className={`p-3 ${C_ALERT}`}>83%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p className="mt-4 text-gray-600 text-center">
+                            コピペ、スクショ、個人メール転送...<br />最もリスクが高い場所に、予算ゼロ。
+                        </p>
+                    </div>
+                </div>
+                <div className="mt-auto bg-blue-50 border-l-4 border-yellow-500 p-4 rounded-r flex gap-3 items-center text-xl">
+                    <Icon name="Lightbulb" className={C_ACCENT} />
+                    <span>本日の提案：この「見えない穴」を塞ぎ、同時に年間5,000万円のコストを削減する方法をご紹介します。</span>
+                </div>
+            </div>
+        );
+
+        const Slide2 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    VDI（仮想デスクトップ）—— なぜ高いのに効果がないのか？
+                </h2>
+                <div className="grid grid-cols-2 gap-12 flex-1 items-center">
+                    <div>
+                        <p className="text-2xl mb-6">
+                            <strong>【コストの現実】</strong> 3年間合計：<br />
+                            <span className={`${C_ALERT} text-4xl font-bold`}>2億5,500万円</span>
+                        </p>
+                        <table className="w-full text-lg border-collapse mb-4">
+                            <thead>
+                                <tr className="bg-blue-600 text-white">
+                                    <th className="p-3 text-left">項目</th>
+                                    <th className="p-3 text-left">単年</th>
+                                    <th className="p-3 text-left">3年合計</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr className="even:bg-gray-50 border-b"><td className="p-3">ライセンス</td><td className="p-3">3,000万</td><td className="p-3">9,450万</td></tr>
+                                <tr className="even:bg-gray-50 border-b"><td className="p-3">サーバー</td><td className="p-3">2,000万</td><td className="p-3">6,300万</td></tr>
+                                <tr className="even:bg-gray-50 border-b"><td className="p-3">運用保守</td><td className="p-3">1,500万</td><td className="p-3">4,725万</td></tr>
+                                <tr className="even:bg-gray-50 border-b"><td className="p-3">初期構築</td><td className="p-3">5,000万</td><td className="p-3">5,000万</td></tr>
+                            </tbody>
+                        </table>
+                        <p className="text-sm text-gray-500">※AIワークロードのクラウド移行により、サーバーコストはさらに上昇傾向。</p>
+                    </div>
+                    <div>
+                        <div className="bg-yellow-50 border-t-8 border-yellow-400 rounded-xl p-8 shadow-lg">
+                            <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <Icon name="ShieldAlert" className="text-yellow-600" /> 社員の本音（生産性への影響）
+                            </h3>
+                            <ul className="space-y-4 text-xl list-disc pl-6 text-gray-700">
+                                <li>「重すぎて仕事にならない」 (78%)</li>
+                                <li>「自宅PCで作業したい」 (65%)</li>
+                                <li>「接続切れで納期遅延」 (43%)</li>
+                            </ul>
+                            <p className="mt-6 text-xl font-bold text-center">機会損失：年間 約6億円相当</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-auto bg-blue-50 border-l-4 border-yellow-500 p-4 rounded-r flex gap-3 items-center text-xl">
+                    <Icon name="Lightbulb" className={C_ACCENT} />
+                    <span>経営への問い：「この2億5,500万円は、本当に必要なコストですか？」</span>
+                </div>
+            </div>
+        );
+
+        const Slide3 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-6 font-Montserrat">
+                    Island.io —— ブラウザそのものを「セキュリティ装置」に変える
+                </h2>
+                <p className="text-2xl text-center mb-10">
+                    従来の発想：「外から守る」 <span className="text-gray-400 mx-2">→</span> <span className={`${C_PRIMARY} font-bold`}>Islandの発想：「ブラウザ自体に安全装置を組み込む」</span>
+                </p>
+
+                <div className="grid grid-cols-3 gap-8 mb-8">
+                    <div className="bg-white rounded-xl p-6 shadow-lg border-t-8 border-blue-600 flex flex-col items-center text-center">
+                        <Icon name="Eye" size={64} className="text-blue-600 mb-4" />
+                        <h3 className="text-2xl font-bold mb-4">1. 自動認識</h3>
+                        <p className="text-lg text-gray-600">機密情報（契約書・顧客データ）を開いた瞬間、自動で保護モードへ。</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-6 shadow-lg border-t-8 border-green-600 flex flex-col items-center text-center">
+                        <Icon name="Ban" size={64} className="text-green-600 mb-4" />
+                        <h3 className="text-2xl font-bold mb-4">2. 自動防止</h3>
+                        <p className="text-lg text-gray-600">保護モード中は危険操作を禁止。<br />❌コピペ ❌スクショ ❌外部AI</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-6 shadow-lg border-t-8 border-yellow-500 flex flex-col items-center text-center">
+                        <Icon name="History" size={64} className="text-yellow-500 mb-4" />
+                        <h3 className="text-2xl font-bold mb-4">3. 自動記録</h3>
+                        <p className="text-lg text-gray-600">「誰が・いつ・何を」全て記録。監査対応を完全自動化。</p>
+                    </div>
+                </div>
+
+                <div className="mt-auto bg-gray-100 border-l-4 border-gray-800 p-6 rounded-r text-xl text-gray-700">
+                    これは「監視」ではありません。「自動車のエアバッグ」です。普段は存在を感じさせず、危険な瞬間だけ社員を守ります。
+                </div>
+            </div>
+        );
+
+        const Slide4 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    ROI 344% —— 3年間で2億円の価値を生み出す投資
+                </h2>
+                <div className="grid grid-cols-2 gap-16 flex-1">
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="ChartLine" className={C_PRIMARY} /> 投資対効果 (Forrester調査)
+                        </h3>
+                        <div className="bg-blue-600 text-white p-6 rounded-xl text-center mb-6 shadow-md">
+                            <span className="text-6xl font-bold block">344%</span>
+                            <span className="text-xl opacity-90">ROI (投資回収期間: 6ヶ月未満)</span>
+                        </div>
+                        <ul className="space-y-4 text-xl text-gray-700 list-disc pl-5">
+                            <li><strong>VDI廃止：</strong> 1億8,500万円削減</li>
+                            <li><strong>インシデント対応減：</strong> 4,200万円削減</li>
+                            <li><strong>コンプラ対応減：</strong> 2,000万円削減</li>
+                        </ul>
+                        <p className={`text-xl font-bold ${C_SECONDARY} text-center mt-6`}>
+                            1円投資すると3.44円になって返ってくる
+                        </p>
+                    </div>
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="Scale" className={C_PRIMARY} /> 比較シミュレーション
+                        </h3>
+                        <table className="w-full text-lg border-collapse shadow-sm">
+                            <thead>
+                                <tr className="bg-gray-200">
+                                    <th className="p-3 text-left">評価項目</th>
+                                    <th className="p-3 text-center">VDI維持</th>
+                                    <th className="p-3 text-center">Island導入</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr className="border-b"><td className="p-3">3年間総コスト</td><td className={`p-3 text-center ${C_ALERT} font-bold`}>2.55億円</td><td className={`p-3 text-center ${C_SECONDARY} font-bold`}>0.72億円</td></tr>
+                                <tr className="border-b"><td className="p-3">セキュリティ</td><td className={`p-3 text-center ${C_ALERT} font-bold`}>穴あり</td><td className={`p-3 text-center ${C_SECONDARY} font-bold`}>全領域カバー</td></tr>
+                                <tr className="border-b"><td className="p-3">生産性</td><td className={`p-3 text-center ${C_ALERT} font-bold`}>70%</td><td className={`p-3 text-center ${C_SECONDARY} font-bold`}>100%以上</td></tr>
+                                <tr className="border-b"><td className="p-3">社員満足度</td><td className={`p-3 text-center ${C_ALERT} font-bold`}>低い</td><td className={`p-3 text-center ${C_SECONDARY} font-bold`}>高い</td></tr>
+                                <tr className="bg-gray-100 border-t-2 border-gray-400">
+                                    <td className="p-3 font-bold">差分</td>
+                                    <td colSpan="2" className={`p-3 text-center text-2xl font-bold ${C_SECONDARY}`}>利益創出：約1.8億円</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div className="mt-auto bg-blue-50 border-l-4 border-yellow-500 p-4 rounded-r flex gap-3 items-center text-xl">
+                    <Icon name="Lightbulb" className={C_ACCENT} />
+                    <span>CFOへの提案：これは「予算申請」ではなく、既存予算の使い道を変えて2億円を生む「予算最適化」です。</span>
+                </div>
+            </div>
+        );
+
+        const Slide5 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    生成AI活用 —— 「禁止」から「全社推進」へ
+                </h2>
+                <div className="grid grid-cols-2 gap-12 flex-1">
+                    <div>
+                        <h3 className={`text-2xl font-bold ${C_ALERT} mb-4 flex items-center gap-2`}>
+                            <Icon name="Ban" /> 現状の矛盾
+                        </h3>
+                        <ul className="space-y-3 text-xl text-gray-700 list-disc pl-6 mb-8">
+                            <li>経営：「AIで生産性を上げろ」</li>
+                            <li>現場：「危険だから禁止されている」</li>
+                            <li>結果：シャドーITの横行、競合への遅れ</li>
+                        </ul>
+
+                        <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                            <h3 className={`text-2xl font-bold ${C_PRIMARY} mb-2 flex items-center gap-2`}>
+                                <Icon name="CheckCircle" /> Islandの解決策
+                            </h3>
+                            <p className="mb-4 text-gray-600">入力内容をリアルタイムで自動検査・マスキング。</p>
+                            <div className="bg-gray-800 text-green-400 p-4 rounded font-mono text-sm leading-relaxed shadow-inner">
+                                <span className="text-gray-400">Input:</span> 「<strong className="text-white">ABC社</strong>との<strong className="text-white">3億円</strong>の契約について...」<br />
+                                <span className="text-gray-500 block my-2">↓ Auto-Masking ↓</span>
+                                <span className="text-gray-400">Send:</span> 「<strong className="text-yellow-400">[顧客名]</strong>との<strong className="text-yellow-400">[金額]</strong>の契約について...」
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="Rocket" className={C_PRIMARY} /> 導入効果 (1,000名規模)
+                        </h3>
+                        <div className="bg-green-600 text-white p-6 rounded-xl text-center mb-6 shadow-md">
+                            <span className="text-5xl font-bold block">3億円</span>
+                            <span className="text-xl opacity-90">年間生産性向上効果</span>
+                        </div>
+                        <table className="w-full text-lg">
+                            <tbody>
+                                <tr className="border-b"><td className="p-3">資料作成時間</td><td className={`p-3 font-bold ${C_SECONDARY} text-right`}>40% 短縮</td></tr>
+                                <tr className="border-b"><td className="p-3">メール返信</td><td className={`p-3 font-bold ${C_SECONDARY} text-right`}>2倍 速く</td></tr>
+                                <tr className="border-b"><td className="p-3">市場調査</td><td className={`p-3 font-bold ${C_SECONDARY} text-right`}>60% 短縮</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div className="mt-auto bg-blue-50 border-l-4 border-yellow-500 p-4 rounded-r flex gap-3 items-center text-xl">
+                    <Icon name="Bot" className={C_ACCENT} />
+                    <span>「AIを止める」のではなく、「AIを安全に使いこなす」企業へ。これが2026年の競争優位です。</span>
+                </div>
+            </div>
+        );
+
+        const Slide6 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    グローバル取引の「新しい参加条件」
+                </h2>
+                <div className="grid grid-cols-2 gap-12 flex-1">
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="Globe" className={C_PRIMARY} /> 2025年8月〜 新しい現実
+                        </h3>
+                        <p className="text-xl text-gray-600 mb-4">EU AI法、サイバーレジリエンス法などが施行。</p>
+                        <div className="bg-white border-t-8 border-red-500 rounded-xl p-6 shadow-lg">
+                            <ul className="space-y-4 text-xl list-disc pl-6 text-red-600">
+                                <li>データの取り扱いを完全記録</li>
+                                <li>外部監査で即座に証明</li>
+                                <li className="font-bold">違反 ＝ 取引停止 / 巨額罰金</li>
+                            </ul>
+                        </div>
+                        <p className="mt-4 text-gray-600">日本企業の67%は未対応。手遅れになる前に。</p>
+                    </div>
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="FileText" className={C_PRIMARY} /> Islandで自動対応
+                        </h3>
+                        <ul className="space-y-4 text-xl text-gray-700 list-disc pl-6 mb-6">
+                            <li><strong>操作記録：</strong>ブロックチェーン技術で改ざん不可能に自動保存。</li>
+                            <li><strong>レポート：</strong>監査対応時間を「数週間」から「数時間」へ。</li>
+                            <li><strong>データ主権：</strong>各国の規制に自動追従。</li>
+                        </ul>
+                        <div className="bg-green-50 p-6 rounded-xl border border-green-200 text-green-900">
+                            <strong>【製造業A社の事例】</strong><br />
+                            導入2週間で対応完了 → 取引継続＆新規案件3件獲得
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-auto bg-red-50 border-l-4 border-red-500 p-4 rounded-r flex gap-3 items-center text-xl text-red-900">
+                    <Icon name="ShieldAlert" />
+                    <span>警告：期限まであと7ヶ月。対応の遅れは、グローバルサプライチェーンからの除外を意味します。</span>
+                </div>
+            </div>
+        );
+
+        const Slide7 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    導入プロセス —— リスクゼロで始められる理由
+                </h2>
+
+                <div className="flex justify-between items-center mb-10 gap-4">
+                    <div className="bg-white rounded-xl p-6 shadow-md border-t-8 border-blue-600 w-1/3 text-center">
+                        <h3 className={`text-xl font-bold ${C_PRIMARY} mb-2`}>Phase 1: トライアル</h3>
+                        <p className="font-bold mb-2">期間: 30日間</p>
+                        <p className="text-gray-600">実際の業務環境で試用<br />コストゼロ<br />既存影響なし</p>
+                    </div>
+                    <div className="text-4xl text-gray-300">➜</div>
+                    <div className="bg-white rounded-xl p-6 shadow-md border-t-8 border-blue-600 w-1/3 text-center">
+                        <h3 className={`text-xl font-bold ${C_PRIMARY} mb-2`}>Phase 2: 段階展開</h3>
+                        <p className="font-bold mb-2">期間: 3~6ヶ月</p>
+                        <p className="text-gray-600">パイロット(100名)<br />↓<br />全社展開(1,000名)</p>
+                    </div>
+                    <div className="text-4xl text-gray-300">➜</div>
+                    <div className="bg-blue-50 rounded-xl p-6 shadow-md border-t-8 border-green-600 w-1/3 text-center">
+                        <h3 className={`text-xl font-bold ${C_SECONDARY} mb-2`}>安心保証</h3>
+                        <p className="font-bold mb-2">リスクゼロ</p>
+                        <p className="text-gray-600">社員研修不要<br />日本語サポート<br /><strong>全額返金保証</strong></p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-12 flex-1">
+                    <div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <Icon name="ThumbsUp" className={C_PRIMARY} /> 経営者の懸念を解消
+                        </h3>
+                        <ul className="space-y-3 text-xl text-gray-700 list-disc pl-6">
+                            <li>「業務が止まる？」→ 既存と並行稼働で影響なし</li>
+                            <li>「使いにくい？」→ 見た目はChromeと同じ</li>
+                            <li>「失敗したら？」→ アンインストールで即元通り</li>
+                        </ul>
+                    </div>
+                    <div className="flex items-center justify-center">
+                        <p className={`text-3xl font-bold ${C_PRIMARY} text-center`}>
+                            まずは無料で試して、<br />効果を確認してください。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const Slide8 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    経営者の皆様への最終的な選択肢
+                </h2>
+                <div className="grid grid-cols-2 gap-12 flex-1 items-center">
+                    <div className="bg-gray-50 border-t-8 border-gray-500 rounded-xl p-8 shadow-lg opacity-90 hover:opacity-100 transition">
+                        <h3 className="text-2xl font-bold text-gray-600 mb-4">選択肢A：現状維持</h3>
+                        <ul className="space-y-4 text-xl list-disc pl-6 text-red-600 mb-6">
+                            <li>VDIに3年で約2億円支払い</li>
+                            <li>社員の生産性低下を受け入れ</li>
+                            <li>情報漏えいリスク放置</li>
+                            <li>AI活用禁止で競合に遅れ</li>
+                        </ul>
+                        <p className="font-bold text-gray-600 text-lg">3年後：守りのコストで疲弊し、取り残される。</p>
+                    </div>
+                    <div className="bg-blue-50 border-t-8 border-blue-600 rounded-xl p-8 shadow-2xl transform scale-105">
+                        <h3 className={`text-2xl font-bold ${C_PRIMARY} mb-4`}>選択肢B：Islandへの転換</h3>
+                        <ul className="space-y-4 text-xl list-disc pl-6 text-gray-800 mb-6">
+                            <li>3年で1.5億円コスト削減</li>
+                            <li>削減分を成長投資へ</li>
+                            <li>情報漏えいリスク 85%減</li>
+                            <li>AI全社活用で生産性向上</li>
+                        </ul>
+                        <p className={`font-bold ${C_PRIMARY} text-2xl`}>3年後：圧倒的な競争優位を確立。</p>
+                    </div>
+                </div>
+                <div className="mt-auto bg-gray-100 border-l-4 border-gray-800 p-4 rounded-r flex gap-3 items-center text-xl">
+                    <Icon name="Gavel" />
+                    <span>「セキュリティ投資を、コストセンターのままにしますか？ それとも、成長を加速させる経営資産に変えますか？」</span>
+                </div>
+            </div>
+        );
+
+        const Slide9 = () => (
+            <div className="h-full px-16 py-10 flex flex-col">
+                <h2 className="text-3xl font-bold text-gray-800 border-l-8 border-blue-600 pl-6 mb-8 font-Montserrat">
+                    次のステップ —— 今日から始められること
+                </h2>
+
+                <div className="text-center mb-10">
+                    <p className="text-3xl font-bold text-gray-700">今日、決めていただきたいことは一つだけ。</p>
+                    <p className={`text-6xl font-extrabold ${C_PRIMARY} my-6`}>「無料トライアルを試してみる」</p>
+                    <p className="text-xl text-gray-600">契約不要。予算承認不要。リスクゼロ。</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-12 flex-1">
+                    <div className="bg-white rounded-xl p-8 shadow-lg border-t-4 border-blue-600">
+                        <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <Icon name="Calendar" className={C_PRIMARY} /> 今後のスケジュール
+                        </h3>
+                        <ol className="text-xl space-y-4 list-decimal pl-6 text-gray-700">
+                            <li><strong className="text-gray-900">今日〜1週間：</strong> 無料トライアル開始</li>
+                            <li><strong className="text-gray-900">2週間後：</strong> 経営層向けデモ＆ROI試算</li>
+                            <li><strong className="text-gray-900">1ヶ月後：</strong> 詳細導入計画の策定</li>
+                        </ol>
+                    </div>
+                    <div className="bg-green-600 text-white rounded-xl p-8 shadow-lg">
+                        <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                            <Icon name="Phone" className="text-white" /> お問い合わせ特典
+                        </h3>
+                        <p className="text-2xl mb-6">本日トライアルをご決断いただいた企業様へ：</p>
+                        <ul className="text-xl space-y-4 list-disc pl-6">
+                            <li className="font-bold">専任コンサルタントによる無料診断</li>
+                            <li className="font-bold">御社専用 ROI試算レポート作成</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const SLIDES = [Slide0, Slide1, Slide2, Slide3, Slide4, Slide5, Slide6, Slide7, Slide8, Slide9];
+        const SLIDE_TITLES = [
+            "Title: Executive Proposal",
+            "Problem: 50M Yen Evaporation",
+            "VDI Cost Analysis: 255M Yen Waste",
+            "Solution: Island.io Browser Security",
+            "ROI: 344% & 200M Yen Value",
+            "Generative AI: Enablement & Masking",
+            "Compliance: Global Supply Chain Requirements",
+            "Adoption Process: Risk-Free Trial",
+            "Options: Status Quo vs Island",
+            "Next Steps: Free Trial Decision"
+        ];
+
+        // --- Main App Component ---
+        const App = () => {
+            const [currentSlide, setCurrentSlide] = useState(0);
+            const [isChatOpen, setIsChatOpen] = useState(false);
+            const [apiKey, setApiKey] = useState(localStorage.getItem("gemini_api_key") || "");
+            const [messages, setMessages] = useState([{ role: 'bot', text: 'こんにちは。Island.ioの戦略コンサルタントAIです。スライドの内容や、他社事例、ROIの詳細についてご質問があればお答えします。' }]);
+            const [input, setInput] = useState("");
+            const [isLoading, setIsLoading] = useState(false);
+            const [docIndex, setDocIndex] = useState([]);
+            const [debugInfo, setDebugInfo] = useState("");
+            const chatEndRef = useRef(null);
+
+            // Load RAG Index
+            useEffect(() => {
+                const loadIndex = async () => {
+                    try {
+                        const r = await fetch('rag_index.json');
+                        if (!r.ok) throw new Error("Index not found");
+                        const data = await r.json();
+                        setDocIndex(Array.isArray(data) ? data : []);
+                        console.log("RAG Index loaded:", data.length);
+                    } catch (e) {
+                        console.warn("RAG Index load failed (running in fallback mode):", e);
+                        setDebugInfo("Offline Mode: Knowledge base unavailable.");
+                    }
+                };
+                loadIndex();
+            }, []);
+
+            // Auto-scroll chat
+            useEffect(() => {
+                if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+            }, [messages, isChatOpen]);
+
+            const handleSaveKey = (val) => {
+                setApiKey(val);
+                localStorage.setItem("gemini_api_key", val);
+            };
+
+            const handleSend = async () => {
+                if (!input.trim() || isLoading) return;
+                const userMsg = input.trim();
+                setInput("");
+                setMessages(p => [...p, { role: 'user', text: userMsg }]);
+                setIsLoading(true);
+                setDebugInfo("Searching...");
+
+                let topDocs = [];
+
+                try {
+                    if (!apiKey) throw new Error("API Key is missing.");
+
+                    // 1. Embedding
+                    const embRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: { parts: [{ text: userMsg }] } })
+                    });
+                    const embData = await embRes.json();
+                    if (embData.error) throw new Error(embData.error.message);
+                    const qVec = embData.embedding.values;
+
+                    // 2. Search
+                    let contextText = "";
+                    if (docIndex.length > 0) {
+                        const scored = docIndex.map(d => ({ ...d, score: d.embedding ? cosineSimilarity(qVec, d.embedding) : -1 }));
+                        scored.sort((a, b) => b.score - a.score);
+                        const top = scored.slice(0, 3).filter(d => d.score > 0.45);
+                        topDocs = top; // Capture for later
+                        setDebugInfo(top.length > 0 ? `Found: ${top[0].source} (${top[0].score.toFixed(2)})` : "No direct matches.");
+                        contextText = top.map((d, i) => `【Ref ${i + 1}: ${d.source}】\n${d.text}`).join("\n\n");
+                    }
+
+                    // 3. Generate with ROBUST STREAMING
+                    const slideContext = `Current Slide: ${SLIDE_TITLES[currentSlide]}`;
+                    const prompt = `
+You are a strategic AI consultant for Island.io. Answer the user's question based on the [Current Slide] and [Reference Docs].
+Answer in Japanese. Use Markdown for formatting.
+If the answer is not in the docs, answer based on general cybersecurity knowledge but mention it.
+
+[Current Slide]
+${slideContext}
+
+[Reference Docs]
+${contextText}
+`;
+                    setMessages(p => [...p, { role: 'bot', text: '' }]);
+
+                    const genRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/${GENERATION_MODEL}:streamGenerateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: userMsg }] }],
+                            systemInstruction: { parts: [{ text: prompt }] }
+                        })
+                    });
+
+                    // Robust Streaming Parser
+                    const reader = genRes.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+
+                        // Process buffer: Find complete JSON objects
+                        let cursor = 0;
+                        while (cursor < buffer.length) {
+                            // Skip non-json start chars
+                            if ([' ', '\n', '\r', '\t', ',', '['].includes(buffer[cursor])) {
+                                cursor++;
+                                continue;
+                            }
+
+                            if (buffer[cursor] !== '{') {
+                                // End of array ']' or junk
+                                if (buffer[cursor] === ']') { cursor++; continue; }
+                                cursor++;
+                                continue;
+                            }
+
+                            // Parse JSON object
+                            let braceCount = 0;
+                            let inString = false;
+                            let end = -1;
+
+                            for (let i = cursor; i < buffer.length; i++) {
+                                const char = buffer[i];
+
+                                // Handle escaped quotes correctly
+                                if (char === '"') {
+                                    let backslashCount = 0;
+                                    let j = i - 1;
+                                    while (j >= cursor && buffer[j] === '\\') {
+                                        backslashCount++;
+                                        j--;
+                                    }
+                                    if (backslashCount % 2 === 0) {
+                                        inString = !inString;
+                                    }
+                                }
+
+                                if (!inString) {
+                                    if (char === '{') braceCount++;
+                                    if (char === '}') {
+                                        braceCount--;
+                                        if (braceCount === 0) {
+                                            end = i;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (end !== -1) {
+                                // Found complete object
+                                const jsonStr = buffer.substring(cursor, end + 1);
+                                try {
+                                    const parsed = JSON.parse(jsonStr);
+                                    const textChunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                                    if (textChunk) {
+                                        setMessages(prev => {
+                                            const newArr = [...prev];
+                                            const last = newArr[newArr.length - 1];
+                                            if (last.role === 'bot') last.text += textChunk;
+                                            return newArr;
+                                        });
+                                    }
+                                } catch (e) { console.error("Parse Error", e); }
+
+                                cursor = end + 1;
+                            } else {
+                                break; // Wait for more data
+                            }
+                        }
+                        buffer = buffer.substring(cursor);
+                    }
+
+                    // Append Referenced Files
+                    if (topDocs.length > 0) {
+                        const uniqueSources = [...new Set(topDocs.map(d => d.source))];
+                        const refText = "\n\n**参照ファイル:**\n" + uniqueSources.map(s => `- ${s}`).join("\n");
+
+                        setMessages(prev => {
+                            const newArr = [...prev];
+                            const last = newArr[newArr.length - 1];
+                            if (last.role === 'bot') last.text += refText;
+                            return newArr;
+                        });
+                    }
+
+                } catch (e) {
+                    setMessages(p => {
+                        const last = p[p.length - 1];
+                        if (last.role === 'bot' && last.text === '') {
+                            return [...p.slice(0, -1), { role: 'bot', text: `Error: ${e.message}` }];
+                        }
+                        return [...p, { role: 'bot', text: `\n\nError: ${e.message}` }];
+                    });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            // --- Resize Logic ---
+            const [chatSize, setChatSize] = useState({ width: 400, height: 600 });
+            const isResizing = useRef(false);
+            const resizeDir = useRef(""); // "top", "left", "top-left"
+
+            useEffect(() => {
+                const handleMouseMove = (e) => {
+                    if (!isResizing.current) return;
+
+                    e.preventDefault(); // Prevent text selection
+
+                    if (resizeDir.current === "top-left" || resizeDir.current === "left") {
+                        const newWidth = Math.min(Math.max(300, window.innerWidth - e.clientX - 32), window.innerWidth - 64); // 32 is roughly right margin
+                        setChatSize(prev => ({ ...prev, width: newWidth }));
+                    }
+
+                    if (resizeDir.current === "top-left" || resizeDir.current === "top") {
+                        const newHeight = Math.min(Math.max(400, window.innerHeight - e.clientY - 32), window.innerHeight - 64); // 32 is roughly bottom margin
+                        setChatSize(prev => ({ ...prev, height: newHeight }));
+                    }
+                };
+
+                const handleMouseUp = () => {
+                    isResizing.current = false;
+                    document.body.style.cursor = 'default';
+                };
+
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+                return () => {
+                    window.removeEventListener('mousemove', handleMouseMove);
+                    window.removeEventListener('mouseup', handleMouseUp);
+                };
+            }, []);
+
+            const startResize = (direction) => (e) => {
+                isResizing.current = true;
+                resizeDir.current = direction;
+                // Prevent default drag behaviors
+                e.preventDefault();
+                e.stopPropagation();
+            };
+
+            const CurrentSlide = SLIDES[currentSlide];
+
+            return (
+                <div className="w-screen h-screen bg-gray-800 flex items-center justify-center font-sans" onMouseMove={(e) => isResizing.current && e.preventDefault()}>
+                    <div className="w-[1280px] h-[720px] bg-white shadow-2xl relative overflow-hidden flex flex-col">
+                        <div className="flex-1 relative">
+                            <CurrentSlide />
+                        </div>
+
+                        <div className="absolute bottom-6 right-8 flex gap-4 z-20">
+                            <button onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} className="bg-black/30 text-white p-3 rounded-full hover:bg-black/50 transition backdrop-blur-sm"><Icon name="ChevronLeft" /></button>
+                            <span className="bg-black/20 px-4 py-2 rounded-full text-gray-600 font-bold backdrop-blur-sm flex items-center shadow-sm border border-white/20">
+                                {currentSlide} / {SLIDES.length - 1}
+                            </span>
+                            <button onClick={() => setCurrentSlide(Math.min(SLIDES.length - 1, currentSlide + 1))} className="bg-black/30 text-white p-3 rounded-full hover:bg-black/50 transition backdrop-blur-sm"><Icon name="ChevronRight" /></button>
+                        </div>
+                    </div>
+
+                    <button onClick={() => setIsChatOpen(!isChatOpen)} className="fixed bottom-8 right-8 w-16 h-16 bg-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition z-50 border-4 border-white">
+                        <Icon name={isChatOpen ? "X" : "Bot"} size={32} />
+                    </button>
+
+                    {isChatOpen && (
+                        <div
+                            className="fixed bottom-28 right-8 bg-white rounded-xl shadow-2xl flex flex-col z-40 overflow-hidden border border-gray-200 font-sans text-sm animate-fade-in-up"
+                            style={{ width: chatSize.width, height: chatSize.height }}
+                        >
+                            {/* Resize Handles */}
+                            <div className="absolute top-0 left-0 w-4 h-4 cursor-nw-resize z-50 bg-transparent hover:bg-blue-200/50" onMouseDown={startResize("top-left")} />
+                            <div className="absolute top-0 left-4 right-0 h-2 cursor-ns-resize z-50 bg-transparent hover:bg-blue-200/50" onMouseDown={startResize("top")} />
+                            <div className="absolute top-4 bottom-0 left-0 w-2 cursor-ew-resize z-50 bg-transparent hover:bg-blue-200/50" onMouseDown={startResize("left")} />
+
+                            <div className="bg-blue-700 p-4 text-white flex justify-between items-center shadow-md select-none">
+                                <h3 className="font-bold flex items-center gap-2 text-lg"><Icon name="Bot" size={20} /> AI Consultant</h3>
+                                {!apiKey && <span className="bg-red-500 text-xs px-2 py-1 rounded font-bold animate-pulse">KEY REQUIRED</span>}
+                            </div>
+
+                            {!apiKey ? (
+                                <div className="p-8 flex flex-col items-center justify-center flex-1 text-center bg-gray-50">
+                                    <Icon name="ShieldAlert" size={48} className="text-gray-300 mb-4" />
+                                    <p className="mb-4 text-gray-600 font-medium">Gemini APIキーを入力してください</p>
+                                    <input type="password" placeholder="AIza..." className="border p-3 rounded w-full mb-4 focus:ring-2 focus:ring-blue-500 outline-none" onBlur={(e) => handleSaveKey(e.target.value)} />
+                                    <p className="text-xs text-gray-400">キーはブラウザ(Local Storage)にのみ保存されます</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 scroll-smooth no-scrollbar">
+                                        {messages.map((m, i) => (
+                                            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm text-base ${m.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'} ${isLoading && m.role === 'bot' && i === messages.length - 1 ? 'typing-cursor' : ''}`}>
+                                                    {m.role === 'bot' && window.marked
+                                                        ? <div className="markdown-body" dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }} />
+                                                        : m.text
+                                                    }
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {isLoading && messages[messages.length - 1].text === "" && <div className="flex justify-start"><div className="bg-white border p-3 rounded-2xl rounded-bl-none text-gray-400 text-xs animate-pulse">Thinking...</div></div>}
+                                        <div ref={chatEndRef} />
+                                    </div>
+                                    {debugInfo && <div className="px-4 py-1 text-xs text-gray-400 border-t bg-gray-100 truncate flex items-center gap-1"><Icon name="CheckCircle" size={10} /> {debugInfo}</div>}
+                                    <div className="p-4 border-t bg-white flex gap-2 shadow-[0_-5px_10px_rgba(0,0,0,0.05)]">
+                                        <input className="flex-1 border border-gray-300 rounded-full px-5 py-3 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                                            value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="質問を入力..." />
+                                        <button onClick={handleSend} disabled={isLoading} className="bg-blue-600 text-white rounded-full w-12 h-12 flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"><Icon name="Send" size={20} /></button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

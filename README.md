@@ -1,20 +1,27 @@
-# Strategic AI Presentation: Hybrid RAG Architecture
+# Strategic AI Presentation: Browser-Native RAG
 
 ## 概要
-本プロジェクトは、ローカル環境での高度な「意味検索（Semantic Search）」と、クラウドAIによる「回答生成」を組み合わせたハイブリッド型RAGシステムです。
-Pythonによるローカル処理でドキュメントをインデックス化し、Webブラウザ上のインターフェースでAIと対話しながらプレゼンテーションを行います。
+このシステムは、あなたのPC内にある資料（PDF, Word, テキストなど）をAIに学習させ、その内容に基づいてプレゼンテーションと質疑応答を行う次世代ツールです。
 
-## 特徴
-* **Local & Secure:** 検索（Embedding）はローカルPCで完結。プライバシーを確保。
-* **Hybrid Intelligence:** 高精度なE5モデル（ローカル）とGemini（クラウド）のハイブリッド構成。
-* **Interactive Presentation:** プレゼン中にリアルタイムで資料に基づく回答を生成。
+**難しいサーバー構築や、重たいAIモデルのダウンロードは一切不要。**
+Webブラウザ上で、最新のGoogle Gemini AIがあなたの専属コンサルタントとしてリアルタイムに回答を生成します。
+
+## 主な機能
+* **🧠 ブラウザ完結型AI:** 検索から回答生成まで、すべてブラウザとクラウドAPIの間で完結。PCへの負荷はほぼゼロです。
+* **⚡ ストリーミング回答:** AIが考えながら喋り出すような「タイプライター風表示」で、サクサク対話できます。
+* **📚 文脈理解RAG:** 資料の「意味」を理解し、単なるキーワード検索では見つからない答えも導き出します。
+* **📊 参照元表示:** 回答の根拠となったファイル名を自動的に提示します。
+
+## 必要要件
+* **Google Gemini APIキー**（無料で取得可能）
+* **Python 3.10 以上**（最初のデータ変換作業でのみ使用）
 
 ## クイックスタート
-1. **準備**: `pip install -r requirements.txt`
-2. **構築**: `python build_rag_index.py --root data --out rag_index_local.json`
-3. **起動**: `start_presentation.bat` をダブルクリック
-
 詳細は [README_MANUAL.md](./README_MANUAL.md) を参照してください。
+
+1.  **準備**: Pythonをインストールし、必要なプログラムを入れます。
+2.  **学習**: 資料をAIが読める形式に変換します（ここだけPythonを使います）。
+3.  **起動**: `start_presentation.bat` をダブルクリックして、ブラウザでプレゼンを開始します。
 
 ## ライセンス
 MIT License / Copyright (c) 2026 Yasuyuki Sakane

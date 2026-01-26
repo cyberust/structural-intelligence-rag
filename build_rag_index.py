@@ -82,8 +82,8 @@ def get_embedding(text, api_key=None):
         return None
     try:
         genai.configure(api_key=api_key)
-        # embedding-001 モデルを使用（既存互換性維持のため変更なし）
-        result = genai.embed_content(model="models/embedding-001", content=text)
+        # text-embedding-004 モデルを使用 (推奨)
+        result = genai.embed_content(model="models/text-embedding-004", content=text)
         return result["embedding"]
     except Exception as e:
         sys.stderr = _stderr_backup
